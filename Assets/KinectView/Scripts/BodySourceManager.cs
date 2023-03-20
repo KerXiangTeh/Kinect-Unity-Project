@@ -1,69 +1,59 @@
 ﻿using UnityEngine;
 using System.Collections;
-using Windows.Kinect;
+using Microsoft.Azure.Kinect.Sensor;
+using Microsoft.Azure.Kinect.BodyTracking;
+using UnityEngine.Playables;
 
-public class BodySourceManager : MonoBehaviour 
+public class BodySourceManager : MonoBehaviour
 {
-    private KinectSensor _Sensor;
-    private BodyFrameReader _Reader;
-    private Body[] _Data = null;
-    
-    public Body[] GetData()
+    private Device _Sensor;
+    private BodyTracker _Tracker;
+    private FrameData[] _Data = null;
+
+    public FrameData[] GetData()
     {
         return _Data;
     }
-    
 
-    void Start () 
-    {
-        _Sensor = KinectSensor.GetDefault();
 
-        if (_Sensor != null)
-        {
-            _Reader = _Sensor.BodyFrameSource.OpenReader();
-            
-            if (!_Sensor.IsOpen)
-            {
-                _Sensor.Open();
-            }
-        }   
-    }
-    
-    void Update () 
+    void Start()
     {
-        if (_Reader != null)
-        {
-            var frame = _Reader.AcquireLatestFrame();
-            if (frame != null)
-            {
-                if (_Data == null)
-                {
-                    _Data = new Body[_Sensor.BodyFrameSource.BodyCount];
-                }
-                
-                frame.GetAndRefreshBodyData(_Data);
-                
-                frame.Dispose();
-                frame = null;
-            }
-        }    
+        _Sensor = Device.Open();
+        _Tracker = BodyTracker.Create(_Sensor.GetCalibration(), new BodyTrackerConfiguration());
     }
-    
+
+    void Update()
+    {
+        var capture = _Sensor.GetCapture();
+        var frame = _Tracker.EnqueueCapture(capture);
+
+        if (_Data == null)
+        {
+            _Data = new FrameData[1];
+        }
+
+        if (_Tracker.TryPopResult(out var result))
+        {
+            result.GetBodySkeletons(_Data);
+        }
+    }
+
     void OnApplicationQuit()
     {
-        if (_Reader != null)
+        if (_Tracker != null)
         {
-            _Reader.Dispose();
-            _Reader = null;
+            _Tracker.Dispose();
+            _Tracker = null;
         }
-        
+
         if (_Sensor != null)
         {
             if (_Sensor.IsOpen)
             {
                 _Sensor.Close();
             }
-            
+
+            _Sensor.Dispose();
             _Sensor = null;
         }
     }
